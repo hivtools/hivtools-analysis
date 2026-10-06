@@ -1,0 +1,186 @@
+---
+title: "Run breastfeeding duration analysis"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+This takes you from a fresh clone of hivtools-analysis to the Spectrum breastfeeding inputs. It outputs:
+
+- `bf-post-hiv.csv`;
+- the AMModData parameter tables;
+- a fit-check PDF.
+
+The model fits survey data that hivtools-data extracts and publishes to the shared orderly archive on the Avenir Dropbox. You pull that one packet, then run two tasks here. For what the model does and how it was migrated, see `docs/breastfeeding.md`.
+
+```
+hivtools-data                        hivtools-analysis
+{iso3}_data_survey* (33 tasks)
+        |
+aaa_data_survey_breastfeeding  --->  bf_fit  --->  bf_outputs
+        (Dropbox archive)            (Stan)        (Spectrum CSVs, plots)
+```
+
+## 1. Set up packages and sync orderly archive
+
+You need:
+
+- **R with these packages:**
+
+  ```{r}
+  install.packages(c("orderly", "rstan", "dplyr", "readr", "ggplot2", "countrycode"))
+  ```
+
+  You need orderly >= 2.0 and rstan >= 2.32; the Stan model uses the `array[]` syntax.
+
+- **The hivtools-data orderly archive available locally.** It lives in the Avenir Dropbox at `Avenir DataSets/UNAIDS/hivtools-data/orderly`. Access to this archive is managed by Avenir, please get in touch with REsra@avenirhealth.org if you would like to request access. Make the folder available offline (right-click, then Dropbox > Make available offline) and wait for it to sync: online-only files are 0-byte placeholders that R can't read.
+
+
+## 2. Clone the repo
+
+```
+git clone https://github.com/hivtools/hivtools-analysis.git
+cd hivtools-analysis
+```
+
+Open R with the working directory at the repo root. 
+
+orderly's working store (`.outpack/`) is gitignored, so a fresh clone needs it created once:
+
+```{r}
+orderly::orderly_init()
+```
+
+## 3. Point R at the hivtools-data archive
+
+Add the local path to the archive to your `.Renviron`: `[USER_PATH]/Avenir DataSets/UNAIDS/hivtools-data/orderly`
+
+Open the file:
+
+```{r}
+usethis::edit_r_environ()   # opens ~/.Renviron
+```
+
+Add one line with your own path to the synced folder:
+
+```
+HIVTOOLS_DATA_ORDERLY=/Users/<you>/Avenir Health Dropbox/Avenir DataSets/UNAIDS/hivtools-data/orderly
+```
+
+On Windows, use forward slashes: `C:/Users/<you>/Avenir Health Dropbox/...`.
+
+Save the file, **restart R**, then check the variable:
+
+```{r}
+Sys.getenv("HIVTOOLS_DATA_ORDERLY")
+dir.exists(Sys.getenv("HIVTOOLS_DATA_ORDERLY"))  # should be TRUE
+```
+
+If the first line returns `""`, R didn't pick up the file. Restart R again, and check you edited `~/.Renviron`, not a project-level `.Renviron`.
+
+## 4. Register the archive as an orderly location (once per clone)
+
+```{r}
+orderly::orderly_location_add_path(
+  "hivtools-data",
+  path = Sys.getenv("HIVTOOLS_DATA_ORDERLY")
+)
+orderly::orderly_location_list()   # should list "local" and "hivtools-data"
+```
+
+The location is saved in `.outpack/`, which is gitignored, so you do this once per clone, not once per session.
+
+## 5. Pull the input packet
+
+```{r}
+orderly::orderly_location_pull(
+  quote(latest(name == "aaa_data_survey_breastfeeding" && parameter:version == "2026")),
+  location = "hivtools-data",
+  fetch_metadata = TRUE
+)
+```
+
+This pulls only the pooled breastfeeding packet, not the 33 country packets behind it. 
+
+Confirm download:
+
+```{r}
+orderly::orderly_search(
+  quote(name == "aaa_data_survey_breastfeeding"),
+  location = "local"
+)
+```
+
+## 6. Fit the model
+
+```{r}
+orderly::orderly_run("bf_fit", parameters = list(version = "2026"))
+```
+
+This runs 4 chains of 2000 iterations on up to 4 cores, and takes about 10 minutes. The first run also compiles the Stan model, which adds a minute or two.
+
+The fit is seeded (`seed` parameter, default `20210518`), so re-running gives the same draws. To run with a different seed:
+
+```{r}
+orderly::orderly_run("bf_fit", parameters = list(version = "2026", seed = 1L))
+```
+
+## 7. Produce the outputs
+
+```{r}
+orderly::orderly_run("bf_outputs", parameters = list(version = "2026"))
+```
+
+This uses the latest `bf_fit` packet for the same `version`. The outputs land in `archive/bf_outputs/<packet id>/`:
+
+| File | What it is | Where it goes |
+|---|---|---|
+| `bf-post-hiv.csv` | % of HIV+ mothers **not** breastfeeding, by 2-month interval (rows) and survey (columns) | Spectrum AIM PMTCT breastfeeding input |
+| `bf-pars-ceff.csv` | Country parameters (`bgn`, `med`, `shp`) | AMModData InfantFeedingModel tab |
+| `bf-pars-reff.csv` | Regional time and HIV effects | AMModData InfantFeedingModel tab |
+| `bf-fit-surveys.pdf` | Model fit against survey data, one page per survey | Check before using the outputs |
+
+To find the latest outputs:
+
+```{r}
+id <- orderly::orderly_search("latest", name = "bf_outputs")
+list.files(file.path("archive/bf_outputs", id))
+```
+
+## 8. Check the fit
+
+Before using the outputs:
+
+- **Read `bf-fit-surveys.pdf`.** On each page the model line and band should follow the survey points. Look for surveys where the HIV+ curve misses the data badly; HIV+ samples are small, so wide intervals there are expected.
+- **Check convergence:**
+
+  ```{r}
+  id_fit <- orderly::orderly_search("latest", name = "bf_fit")
+  fit <- readRDS(file.path("archive/bf_fit", id_fit, "bf_fit.rds"))
+  s <- rstan::summary(fit)$summary
+  pars <- grep("^(ceff|base)", rownames(s))
+  max(s[pars, "Rhat"])    # should be below 1.01
+  min(s[pars, "n_eff"])   # should be in the hundreds or more
+  ```
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| `Sys.getenv("HIVTOOLS_DATA_ORDERLY")` returns `""` | `~/.Renviron` wasn't read. Restart R; check the file name and that the line has no quotes or spaces around `=`. |
+| `No packets found in query, so cannot pull anything` | Either `fetch_metadata = TRUE` is missing, or the packet hasn't been pushed to the archive for this `version` yet. Ask the hivtools-data maintainers. |
+| `orderly directory ... not initialised` / `Did not find an '.outpack' directory` | Run `orderly::orderly_init()` at the repo root (step 2). |
+| `Error while reading .../orderly/.outpack/config.json ... premature EOF`, or `cannot open file` / 0-byte files under the Dropbox folder | Dropbox online-only placeholders. Make the `orderly` folder available offline (step 1), wait for it to sync, then retry. |
+| Stan `Syntax error ... old array syntax` | Your bf-model.stan predates the array-syntax update, or rstan is very old. Pull the latest repo and update rstan. |
+| `Failed to find packet for query 'latest(parameter:version == ...)'` when running `bf_outputs` | Run `bf_fit` first, with the same `version`. |
+
+## Updating for a new round
+
+When hivtools-data maintainers release new survey data, for example after new DHS surveys come out:
+
+1. They re-run the affected country tasks and `aaa_data_survey_breastfeeding`, and push the new packet to the archive.
+2. You repeat steps 5–7. Step 5 pulls the newest packet, and `bf_fit` uses it automatically.
+
+For a new estimates round, use the new `version` everywhere (e.g. `"2027"`), once hivtools-data has published packets for it.

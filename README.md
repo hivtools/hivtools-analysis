@@ -1,5 +1,7 @@
 # hivtools-analysis
 
+**Version 0.1.0** · see [NEWS.md](NEWS.md) for changes in each version.
+
 An [orderly2](https://mrc-ide.github.io/orderly/) pipeline for the downstream survey analyses that produce Spectrum and SHIPP inputs. Survey extraction happens in [hivtools-data](https://github.com/hivtools/hivtools-data); this repo fits models to the pooled survey outputs it publishes.
 
 | Analysis | Tasks | Input from hivtools-data | Output |
@@ -26,37 +28,23 @@ install.packages(c("orderly", "rstan", "dplyr", "readr", "ggplot2", "countrycode
 
 ### Inputs from hivtools-data
 
-Input packets come from the hivtools-data orderly archive on the Avenir Dropbox. Add it as a location once per clone:
+Input packets come from the hivtools-data orderly archive on the Avenir Dropbox (`Avenir DataSets/UNAIDS/hivtools-data/orderly`), which must be **available offline**.
 
-```r
-orderly::orderly_location_add_path(
-  "hivtools-data",
-  path = "~/Avenir Health Dropbox/Avenir DataSets/UNAIDS/hivtools-data/orderly"
-)
-```
+Set up once per clone:
 
-Then pull the input packets for the current round before running:
+1. Run `orderly::orderly_init()`, because `.outpack/` is gitignored.
+2. Set `HIVTOOLS_DATA_ORDERLY` in `~/.Renviron`. This is the same variable hivtools-data uses.
+3. Register the location: `orderly::orderly_location_add_path("hivtools-data", Sys.getenv("HIVTOOLS_DATA_ORDERLY"))`.
 
-```r
-orderly::orderly_location_pull(
-  'latest(name == "aaa_data_survey_breastfeeding" && parameter:version == "2026")',
-  location = "hivtools-data",
-  fetch_metadata = TRUE
-)
-```
+## Running an analysis
 
-Only the requested packet's files are pulled, not its upstream country packets.
+Each analysis has a step-by-step guide in `vignettes/`:
 
-## Running tasks
+| Analysis | Guide |
+|---|---|
+| Breastfeeding duration | [`vignettes/run_breastfeeding_analysis.Rmd`](vignettes/run_breastfeeding_analysis.Rmd) |
 
 Every task takes `version`, which must currently be `"2026"` (the estimates round).
-
-```r
-orderly::orderly_run("bf_fit", parameters = list(version = "2026"))
-orderly::orderly_run("bf_outputs", parameters = list(version = "2026"))
-```
-
-`bf_fit` runs 4 chains x 2000 iterations; expect several minutes.
 
 ## Credits
 
