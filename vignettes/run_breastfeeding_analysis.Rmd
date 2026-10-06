@@ -13,7 +13,7 @@ This takes you from a fresh clone of hivtools-analysis to the Spectrum breastfee
 - the AMModData parameter tables;
 - a fit-check PDF.
 
-The model fits survey data that hivtools-data extracts and publishes to the shared orderly archive on the Avenir Dropbox. You pull that one packet, then run two tasks here. For what the model does and how it was migrated, see `docs/breastfeeding.md`.
+The model fits to survey data that hivtools-data extracts and publishes to the shared orderly archive on the Avenir Dropbox. You pull that one packet, then run two tasks here. For what the model does and how it was migrated, see `docs/breastfeeding.md`.
 
 ```
 hivtools-data                        hivtools-analysis
