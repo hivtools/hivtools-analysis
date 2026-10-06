@@ -40,11 +40,31 @@ vignettes/*.pdf
 .Renviron
 .env
 
-# pkgdown site
-docs/
-
 # translation temp files
 po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# ---VVV--- added by orderly ---VVV----------------
+# Don't manually edit content between these markers
+.outpack
+orderly_envir.yml
+draft
+archive
+# ---^^^--- added by orderly ---^^^----------------
+
+# Orderly task working files
+depends
+check
+
+# Local-only config and notes
+rdhs.json
+*.Rproj
+.DS_Store
+.claude/
+CLAUDE.md
+LOG.md
+
+# Compiled Stan models (rstan auto_write)
+*.rds
