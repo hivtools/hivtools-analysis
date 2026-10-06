@@ -1,0 +1,26 @@
+Type: Project
+Package: hivtools.analysis
+Title: Downstream Survey Analyses for Spectrum and SHIPP Inputs
+Version: 0.1.0
+Authors@R:
+    person("Rachel", "Esra", email = "REsra@avenirhealth.org", role = c("aut", "cre"))
+Description: An orderly2 pipeline that fits models to pooled survey outputs
+    published by hivtools-data. Not an R package: this file records the
+    repo version and the packages needed to run its tasks.
+License: MIT + file LICENSE
+URL: https://github.com/hivtools/hivtools-analysis
+Imports:
+    countrycode,
+    dplyr,
+    ggplot2,
+    orderly (>= 2.0.0),
+    readr,
+    rstan (>= 2.32),
+    scales
+Suggests:
+    knitr,
+    rmarkdown,
+    usethis
+Remotes:
+    mrc-ide/orderly2
+Encoding: UTF-8
